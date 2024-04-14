@@ -1,0 +1,114 @@
+version: '3.7'
+services:
+############################
+##  DATA LAKE
+############################
+  minio:
+    image: fjardim/mds-minio
+    container_name: minio
+    entrypoint: sh
+    command:   '-c ''mkdir -p /minio_data/raw && mkdir -p /minio_data/trusted && minio server /minio_data --console-address ":9001"'''
+    ports:
+      - "9050:9000"
+      - "9051:9001"
+    hostname: minio
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ACCESS_KEY: datalake
+      MINIO_SECRET_KEY: datalake
+    volumes:
+      - ./minio/data1:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+
+############################
+## STREAMING
+############################
+  zookeeper:
+    image: fjardim/mds-kafka-zookeeper
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+       - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      interval: 5s
+      retries: 3
+      start_period: 30s
+      test: echo srvr | nc zookeeper 2181
+      timeout: 5s
+
+  kafka-broker:
+    image: fjardim/mds-kafka-broker
+    container_name: kafka-broker
+    hostname: kafka-broker
+    ports:
+      - "9092:9092"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: kafka-broker:9092
+      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: kafka-broker
+      CONFLUENT_METRICS_ENABLE: 'true'
+      CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
+      # AUTO_REGISTER_SCHEMAS : 'false'
+    healthcheck:
+      interval: 1s
+      retries: 5
+      start_period: 60s
+      test: nc -z kafka-broker 9092
+      timeout: 5s
+
+        
+##################################################
+### ANALISE E PROCESSAMENTO
+##################################################
+  spark-master:
+    image: fjardim/mds-spark
+    hostname: spark-master
+    container_name: spark-master
+    command: 
+      - /bin/sh
+      - -c
+      - |
+        /usr/local/spark/sbin/start-master.sh
+        start-notebook.sh --NotebookApp.token=''
+    ports:
+      - 8889:8888
+      - 4040:4040
+      - 4041:4041
+      - 4042:4042
+      - 4043:4043
+    volumes:
+      - ./spark/work:/home/user 
+      - ./spark/env:/env 
+      - ./util:/util
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+
+
+
+networks:
+  datalab:
+    driver: bridge
