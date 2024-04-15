@@ -18,7 +18,7 @@ services:
       MINIO_ACCESS_KEY: datalake
       MINIO_SECRET_KEY: datalake
     volumes:
-      - ./minio/data1:/data
+      - ./minio/data:/data
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -101,12 +101,10 @@ services:
     volumes:
       - ./spark/work:/home/user 
       - ./spark/env:/env 
-      - ./util:/util
     deploy:
       resources:
         limits:
           memory: 4g
-
 
 
 networks:
