@@ -21,4 +21,4 @@ INICIANDO O AMBIENTE*
   
 ### Para iniciar um ambiente com Data Lake e Spark
 
-          docker-compose up -d 
+          docker-compose up -d # streaming-data-lake-house
